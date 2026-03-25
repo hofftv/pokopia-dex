@@ -331,6 +331,39 @@ body {
   box-shadow: 0 0 8px rgba(255, 51, 51, 0.4);
 }
 
+.region-row {
+  margin-top: 8px;
+  display: flex;
+  justify-content: center;
+}
+.region-select {
+  width: 100%;
+  padding: 7px 12px;
+  border: 2px solid #660000;
+  border-radius: 14px;
+  background: #440000;
+  color: #CC8888;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23CC8888' d='M6 8L0 0h12z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 10px;
+  padding-right: 30px;
+}
+.region-select:focus { border-color: #FF4444; background-color: #550000; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23FF4444' d='M6 8L0 0h12z'/%3E%3C/svg%3E"); }
+.region-select.active {
+  background-color: #CC0000;
+  color: #FFF;
+  border-color: #FF3333;
+  box-shadow: 0 0 8px rgba(255, 51, 51, 0.4);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23FFF' d='M6 8L0 0h12z'/%3E%3C/svg%3E");
+}
+
 /* ─── Bottom Sheet (Habitat Drawer) ────────────────── */
 .backdrop {
   position: fixed;
@@ -726,6 +759,17 @@ body {
       <button class="filter-btn" data-filter="missing">Missing</button>
       <button class="filter-btn" data-filter="caught">Caught</button>
     </div>
+    <div class="region-row">
+      <select class="region-select" id="region-select" aria-label="Filter by region">
+        <option value="">All Regions</option>
+        <option value="Bleak Beach">Bleak Beach</option>
+        <option value="Cloud Island">Cloud Island</option>
+        <option value="Palette Town">Palette Town</option>
+        <option value="Rocky Ridges">Rocky Ridges</option>
+        <option value="Sparkling Skylands">Sparkling Skylands</option>
+        <option value="Withered Wastelands">Withered Wastelands</option>
+      </select>
+    </div>
   </div>
 </div>
 
@@ -754,19 +798,59 @@ body {
 
 <script src="data.js"></script>
 <script>
+// ─── Unique IDs for duplicate dex numbers ────────────
+// Some Pokémon share a dex number (Pikachu/Peakychu, Shellos forms, etc.)
+// We assign each a unique ID so caught state doesn't collide.
+const NUM_COUNT = {};
+POKEMON.forEach(p => { NUM_COUNT[p.num] = (NUM_COUNT[p.num] || 0) + 1; });
+POKEMON.forEach(p => {
+  p.uid = NUM_COUNT[p.num] > 1
+    ? p.num + '-' + p.name.toLowerCase().replace(/[^a-z0-9]/g, '')
+    : p.num;
+});
+
+// Build a lookup of all locations each Pokémon appears in
+POKEMON.forEach(p => {
+  const locs = new Set();
+  p.habitats.forEach(h => h.locations.forEach(l => locs.add(l)));
+  p.allLocations = locs;
+});
+
 // ─── State ────────────────────────────────────────────
 const STORAGE_KEY = 'pokopia-caught';
 let caughtSet = new Set(JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'));
 let currentFilter = 'all';
+let currentRegion = '';
 let searchQuery = '';
 let selectedPokemon = null;
+
+// Migrate old num-only keys → uid keys (one-time, idempotent)
+(function migrateCaughtKeys() {
+  const dupeNums = Object.keys(NUM_COUNT).filter(n => NUM_COUNT[n] > 1);
+  let changed = false;
+  dupeNums.forEach(num => {
+    if (caughtSet.has(num)) {
+      // Old key — mark ALL forms with that num as caught, then remove old key
+      POKEMON.filter(p => p.num === num).forEach(p => caughtSet.add(p.uid));
+      caughtSet.delete(num);
+      changed = true;
+    }
+  });
+  if (changed) localStorage.setItem(STORAGE_KEY, JSON.stringify([...caughtSet]));
+})();
 
 function saveCaught() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify([...caughtSet]));
 }
 
-function isCaught(num) {
-  return caughtSet.has(num);
+function isCaught(uid) {
+  return caughtSet.has(uid);
+}
+
+// Helper: find a Pokémon by name and return its uid
+function getUidByName(name) {
+  const p = POKEMON.find(pk => pk.name.toLowerCase() === name.toLowerCase());
+  return p ? p.uid : null;
 }
 
 // ─── Boot Animation ──────────────────────────────────
@@ -788,9 +872,11 @@ function buildGrid() {
 
   for (const p of POKEMON) {
     const cell = document.createElement('div');
-    cell.className = `pokemon-cell ${isCaught(p.num) ? 'caught' : 'uncaught'}`;
+    cell.className = `pokemon-cell ${isCaught(p.uid) ? 'caught' : 'uncaught'}`;
+    cell.dataset.uid = p.uid;
     cell.dataset.num = p.num;
     cell.dataset.name = p.name.toLowerCase();
+    cell.dataset.locations = [...p.allLocations].join('|').toLowerCase();
 
     cell.innerHTML = `
       <img class="sprite" src="${p.sprite}" alt="${p.name}"
@@ -807,10 +893,10 @@ function buildGrid() {
   updateProgress();
 }
 
-function updateCellState(num) {
-  const cell = document.querySelector(`.pokemon-cell[data-num="${num}"]`);
+function updateCellState(uid) {
+  const cell = document.querySelector(`.pokemon-cell[data-uid="${uid}"]`);
   if (!cell) return;
-  const caught = isCaught(num);
+  const caught = isCaught(uid);
   cell.className = `pokemon-cell ${caught ? 'caught' : 'uncaught'}`;
   applyFilters();
 }
@@ -826,14 +912,16 @@ function updateProgress() {
 function applyFilters() {
   const cells = document.querySelectorAll('.pokemon-cell');
   cells.forEach(cell => {
-    const num = cell.dataset.num;
+    const uid = cell.dataset.uid;
     const name = cell.dataset.name;
-    const caught = isCaught(num);
+    const locations = cell.dataset.locations;
+    const caught = isCaught(uid);
 
     let show = true;
     if (currentFilter === 'caught' && !caught) show = false;
     if (currentFilter === 'missing' && caught) show = false;
     if (searchQuery && !name.includes(searchQuery)) show = false;
+    if (currentRegion && !locations.includes(currentRegion.toLowerCase())) show = false;
 
     cell.classList.toggle('hidden', !show);
   });
@@ -853,10 +941,16 @@ document.querySelectorAll('.filter-btn').forEach(btn => {
   });
 });
 
+document.getElementById('region-select').addEventListener('change', (e) => {
+  currentRegion = e.target.value;
+  e.target.classList.toggle('active', !!currentRegion);
+  applyFilters();
+});
+
 // ─── Bottom Sheet ────────────────────────────────────
 function openSheet(pokemon) {
   selectedPokemon = pokemon;
-  const caught = isCaught(pokemon.num);
+  const caught = isCaught(pokemon.uid);
 
   document.getElementById('sheet-sprite').src = pokemon.sprite;
   document.getElementById('sheet-sprite').alt = pokemon.name;
@@ -964,14 +1058,14 @@ document.getElementById('backdrop').addEventListener('click', closeSheet);
 
 document.getElementById('catch-btn').addEventListener('click', () => {
   if (!selectedPokemon) return;
-  const num = selectedPokemon.num;
-  if (isCaught(num)) {
-    caughtSet.delete(num);
+  const uid = selectedPokemon.uid;
+  if (isCaught(uid)) {
+    caughtSet.delete(uid);
   } else {
-    caughtSet.add(num);
+    caughtSet.add(uid);
   }
   saveCaught();
-  updateCellState(num);
+  updateCellState(uid);
   updateProgress();
   closeSheet();
 });
@@ -982,10 +1076,9 @@ function openLightbox(habitat) {
 
   // Build spawn list
   const spawnHtml = habitat.pokemon.map(s => {
-    const caught = isCaught(s.spriteNum.padStart(3, '0'));
-    // Try to find this pokemon in our data to check caught state
+    // Find by name to get the correct uid (handles duplicate dex numbers)
     const matchedP = POKEMON.find(p => p.name.toLowerCase() === s.name.toLowerCase());
-    const isCaughtP = matchedP ? isCaught(matchedP.num) : false;
+    const isCaughtP = matchedP ? isCaught(matchedP.uid) : false;
 
     const rarClass = s.rarity === 'Very Rare' ? 'veryrare'
       : s.rarity === 'Rare' ? 'rare'
