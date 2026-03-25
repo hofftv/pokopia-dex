@@ -1,6 +1,6 @@
-# Pokopia Pokédex
+# Pokopia Pokodex
 
-A Pokédex-themed reference app for **Pokémon Pokopia** (Nintendo Switch 2). Look up which habitats to build to find any Pokémon.
+A Pokodex-themed reference app for **Pokémon Pokopia** (Nintendo Switch 2). Look up which habitats to build to find any Pokémon.
 
 ## Features
 
