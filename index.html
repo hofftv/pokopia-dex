@@ -1,0 +1,1077 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Pokédex">
+<meta name="theme-color" content="#CC0000">
+<link rel="manifest" href="manifest.json">
+<title>Pokopia Pokédex</title>
+<style>
+/* ─── Reset & Globals ──────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html {
+  touch-action: manipulation;
+  overflow-x: hidden;
+  overscroll-behavior: none;
+}
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #8B0000;
+  overflow-x: hidden;
+  overscroll-behavior: none;
+  padding-top: env(safe-area-inset-top, 0);
+  padding-bottom: env(safe-area-inset-bottom, 0);
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* ─── Boot Animation ───────────────────────────────── */
+#boot-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: #8B0000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.5s ease-out;
+  padding-top: env(safe-area-inset-top, 0);
+}
+#boot-screen.fade-out { opacity: 0; pointer-events: none; }
+
+.boot-lens {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #7DF9FF, #0077BE, #003366);
+  border: 4px solid #004466;
+  box-shadow: 0 0 0 3px #222, 0 0 20px rgba(0, 180, 255, 0.5);
+  animation: lens-pulse 0.8s ease-in-out;
+}
+@keyframes lens-pulse {
+  0% { box-shadow: 0 0 0 3px #222, 0 0 0 rgba(0, 180, 255, 0); opacity: 0.3; }
+  50% { box-shadow: 0 0 0 3px #222, 0 0 40px rgba(0, 180, 255, 0.8); opacity: 1; }
+  100% { box-shadow: 0 0 0 3px #222, 0 0 20px rgba(0, 180, 255, 0.5); opacity: 1; }
+}
+
+.boot-indicators {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+.boot-dot {
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  opacity: 0;
+  animation: dot-appear 0.3s ease-out forwards;
+}
+.boot-dot:nth-child(1) { background: #FF3333; animation-delay: 0.5s; }
+.boot-dot:nth-child(2) { background: #FFCC00; animation-delay: 0.7s; }
+.boot-dot:nth-child(3) { background: #33CC33; animation-delay: 0.9s; }
+@keyframes dot-appear { to { opacity: 1; } }
+
+.boot-screen-text {
+  margin-top: 20px;
+  background: #0a1a0a;
+  border: 2px solid #1a3a1a;
+  border-radius: 8px;
+  padding: 16px 24px;
+  font-family: 'Courier New', monospace;
+  color: #33FF33;
+  font-size: 16px;
+  text-shadow: 0 0 8px rgba(51, 255, 51, 0.6);
+  overflow: hidden;
+  min-width: 220px;
+  text-align: center;
+}
+.boot-text-content {
+  opacity: 0;
+  animation: text-type 0.6s ease-out forwards;
+  animation-delay: 1.1s;
+}
+@keyframes text-type {
+  0% { opacity: 0; letter-spacing: 8px; }
+  100% { opacity: 1; letter-spacing: 2px; }
+}
+.boot-scanline {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: rgba(51, 255, 51, 0.3);
+  animation: scanline 0.8s linear;
+  animation-delay: 0.8s;
+  opacity: 0;
+}
+@keyframes scanline {
+  0% { top: 0; opacity: 0.6; }
+  100% { top: 100%; opacity: 0; }
+}
+
+/* ─── Pokédex Shell ────────────────────────────────── */
+.pokedex-shell {
+  max-width: 430px;
+  margin: 0 auto;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: linear-gradient(145deg, #DC1818 0%, #CC0000 30%, #AA0000 70%, #880000 100%);
+  position: relative;
+  padding: 12px 10px;
+  opacity: 0;
+  transition: opacity 0.5s ease-out;
+}
+.pokedex-shell.visible { opacity: 1; }
+
+/* Top decorative bar */
+.pokedex-top-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 6px 10px;
+}
+.lens {
+  width: 52px; height: 52px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #7DF9FF, #0077BE, #003366);
+  border: 3px solid #004466;
+  box-shadow: 0 0 0 3px #333, 0 0 12px rgba(0, 180, 255, 0.4);
+  flex-shrink: 0;
+}
+.indicator-dots {
+  display: flex;
+  gap: 6px;
+}
+.dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  box-shadow: inset 0 -1px 2px rgba(0,0,0,0.3);
+}
+.dot-red { background: #FF4444; }
+.dot-yellow { background: #FFCC00; }
+.dot-green { background: #44CC44; }
+
+/* Hinge line */
+.hinge-line {
+  height: 3px;
+  background: linear-gradient(90deg, transparent 5%, #660000 20%, #440000 50%, #660000 80%, transparent 95%);
+  border-radius: 2px;
+  margin: 0 4px 10px;
+}
+
+/* ─── Screen Area ──────────────────────────────────── */
+.screen-bezel {
+  background: #222;
+  border-radius: 12px;
+  padding: 6px;
+  box-shadow: inset 0 2px 6px rgba(0,0,0,0.5), 0 1px 0 rgba(255,255,255,0.1);
+}
+.screen {
+  background: #F0EDE4;
+  border-radius: 8px;
+  overflow: hidden;
+  min-height: 50vh;
+}
+
+/* Screen header with progress */
+.screen-header {
+  background: #E8E4DA;
+  padding: 10px 12px 8px;
+  border-bottom: 1px solid #D0CCC2;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.progress-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.progress-label {
+  font-size: 14px;
+  font-weight: 700;
+  color: #333;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.pokeball-icon {
+  width: 18px; height: 18px;
+  display: inline-block;
+  background: radial-gradient(circle at 50% 50%, #fff 30%, #333 31%, #333 34%, transparent 35%),
+              linear-gradient(to bottom, #CC0000 50%, #fff 50%);
+  border-radius: 50%;
+  border: 2px solid #333;
+}
+.progress-count {
+  font-size: 13px;
+  color: #666;
+  font-weight: 600;
+}
+.progress-bar-bg {
+  height: 6px;
+  background: #D0CCC2;
+  border-radius: 3px;
+  overflow: hidden;
+}
+.progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #CC0000, #FF3333);
+  border-radius: 3px;
+  transition: width 0.3s ease-out;
+}
+
+/* ─── Pokémon Grid ─────────────────────────────────── */
+.pokemon-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 2px;
+  padding: 6px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+.pokemon-cell {
+  aspect-ratio: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 2px 2px;
+  border-radius: 6px;
+  cursor: pointer;
+  position: relative;
+  background: #F8F6F0;
+  border: 1px solid #E0DDD4;
+  transition: none;
+}
+.pokemon-cell:active {
+  background: #E8E4DA;
+  transform: scale(0.95);
+}
+.pokemon-cell.caught {
+  background: #F0FFF0;
+  border-color: #B0E0B0;
+}
+.pokemon-cell .sprite {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  image-rendering: auto;
+}
+.pokemon-cell.uncaught .sprite {
+  filter: brightness(0);
+  opacity: 0.35;
+}
+.pokemon-cell .dex-num {
+  font-size: 9px;
+  color: #999;
+  font-weight: 600;
+  margin-top: 1px;
+}
+.pokemon-cell.caught .dex-num { color: #666; }
+.pokemon-cell .check-mark {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 14px;
+  height: 14px;
+  background: #44CC44;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  color: white;
+  font-weight: bold;
+}
+.pokemon-cell.hidden { display: none; }
+
+/* ─── Controls Area (below screen) ─────────────────── */
+.controls-area {
+  padding: 10px 6px 8px;
+}
+.search-row {
+  position: relative;
+  margin-bottom: 8px;
+}
+.search-input {
+  width: 100%;
+  padding: 8px 12px 8px 32px;
+  border: 2px solid #660000;
+  border-radius: 20px;
+  background: #440000;
+  color: #FFD4D4;
+  font-size: 16px;
+  outline: none;
+}
+.search-input::placeholder { color: #AA6666; }
+.search-input:focus { border-color: #FF4444; background: #550000; }
+.search-icon {
+  position: absolute;
+  left: 11px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 14px;
+  color: #AA6666;
+  pointer-events: none;
+}
+
+.filter-row {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+}
+.filter-btn {
+  padding: 6px 14px;
+  border: 2px solid #660000;
+  border-radius: 14px;
+  background: #440000;
+  color: #CC8888;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: none;
+}
+.filter-btn:active { transform: scale(0.95); }
+.filter-btn.active {
+  background: #CC0000;
+  color: #FFF;
+  border-color: #FF3333;
+  box-shadow: 0 0 8px rgba(255, 51, 51, 0.4);
+}
+
+/* ─── Bottom Sheet (Habitat Drawer) ────────────────── */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 100;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.backdrop.open { opacity: 1; pointer-events: auto; }
+
+.bottom-sheet {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  max-width: 430px;
+  margin: 0 auto;
+  background: #F0EDE4;
+  border-radius: 16px 16px 0 0;
+  z-index: 101;
+  transform: translateY(100%);
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  max-height: 85vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding-bottom: env(safe-area-inset-bottom, 16px);
+}
+.bottom-sheet.open { transform: translateY(0); }
+
+.sheet-handle {
+  width: 36px;
+  height: 4px;
+  background: #CCC;
+  border-radius: 2px;
+  margin: 8px auto 4px;
+}
+.sheet-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px 12px;
+  border-bottom: 1px solid #D0CCC2;
+}
+.sheet-sprite {
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+  filter: brightness(0);
+  opacity: 0.4;
+}
+.sheet-header.is-caught .sheet-sprite {
+  filter: none;
+  opacity: 1;
+}
+.sheet-pokemon-name {
+  font-size: 20px;
+  font-weight: 800;
+  color: #333;
+}
+.sheet-pokemon-num {
+  font-size: 13px;
+  color: #888;
+  font-weight: 600;
+}
+.sheet-habitat-count {
+  font-size: 13px;
+  color: #666;
+  margin-top: 2px;
+}
+
+/* Habitat cards */
+.habitat-list { padding: 12px 16px; }
+.habitat-card {
+  background: #FFF;
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 10px;
+  border: 1px solid #E0DDD4;
+  cursor: pointer;
+}
+.habitat-card:active { background: #F8F6F0; }
+.habitat-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.habitat-thumb {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  border-radius: 6px;
+  background: #F0EDE4;
+}
+.habitat-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: #333;
+  flex: 1;
+}
+.rarity-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 10px;
+  color: #FFF;
+}
+.rarity-common { background: #44AA44; }
+.rarity-uncommon { background: #DD8800; }
+.rarity-rare { background: #DD4444; }
+.rarity-veryrare { background: #8833CC; }
+
+.habitat-materials {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.material-chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: #F0EDE4;
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  color: #555;
+}
+.material-chip img {
+  width: 18px; height: 18px;
+  object-fit: contain;
+}
+.material-qty {
+  font-weight: 700;
+  color: #CC0000;
+}
+
+.habitat-conditions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 11px;
+  color: #888;
+}
+.condition-group {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.condition-icon { font-size: 13px; }
+.condition-active { color: #333; font-weight: 600; }
+.condition-inactive { opacity: 0.3; }
+
+.location-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+.location-tag {
+  font-size: 10px;
+  background: #E8E4DA;
+  color: #666;
+  padding: 2px 6px;
+  border-radius: 8px;
+}
+
+/* Catch button */
+.catch-btn-row {
+  padding: 12px 16px 8px;
+  border-top: 1px solid #D0CCC2;
+}
+.catch-btn {
+  width: 100%;
+  padding: 12px;
+  border: none;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: none;
+}
+.catch-btn:active { transform: scale(0.98); }
+.catch-btn.catch { background: #CC0000; color: #FFF; }
+.catch-btn.uncatch { background: #E8E4DA; color: #666; }
+
+/* ─── Habitat Lightbox ─────────────────────────────── */
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  padding: 16px;
+}
+.lightbox.open { opacity: 1; pointer-events: auto; }
+
+.lightbox-content {
+  background: #F0EDE4;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 400px;
+  max-height: 80vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  transform: scale(0.9);
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.lightbox.open .lightbox-content { transform: scale(1); }
+
+.lightbox-header {
+  position: relative;
+  text-align: center;
+  padding: 16px 16px 12px;
+  border-bottom: 1px solid #D0CCC2;
+}
+.lightbox-habitat-img {
+  width: 80px;
+  height: 80px;
+  object-fit: contain;
+  margin-bottom: 8px;
+}
+.lightbox-habitat-name {
+  font-size: 18px;
+  font-weight: 800;
+  color: #333;
+}
+.lightbox-desc {
+  font-size: 12px;
+  color: #888;
+  margin-top: 4px;
+}
+.lightbox-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #DDD;
+  border: none;
+  font-size: 16px;
+  color: #666;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lightbox-section {
+  padding: 12px 16px;
+}
+.lightbox-section-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #999;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+.lightbox-materials {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.lightbox-material {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #FFF;
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px solid #E0DDD4;
+}
+.lightbox-material img {
+  width: 24px; height: 24px;
+  object-fit: contain;
+}
+.lightbox-material-name {
+  font-size: 13px;
+  color: #333;
+}
+.lightbox-material-qty {
+  font-size: 13px;
+  font-weight: 700;
+  color: #CC0000;
+}
+
+.lightbox-spawn-list { }
+.lightbox-spawn-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid #EEE;
+}
+.lightbox-spawn-row:last-child { border-bottom: none; }
+.lightbox-spawn-sprite {
+  width: 32px; height: 32px;
+  object-fit: contain;
+}
+.lightbox-spawn-sprite.uncaught {
+  filter: brightness(0);
+  opacity: 0.35;
+}
+.lightbox-spawn-name {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  color: #333;
+}
+.lightbox-spawn-name.uncaught { color: #AAA; }
+
+/* ─── Utility ──────────────────────────────────────── */
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  overflow: hidden;
+  clip: rect(0,0,0,0);
+  white-space: nowrap;
+}
+</style>
+</head>
+<body>
+
+<!-- Boot Animation -->
+<div id="boot-screen">
+  <div class="boot-lens"></div>
+  <div class="boot-indicators">
+    <div class="boot-dot"></div>
+    <div class="boot-dot"></div>
+    <div class="boot-dot"></div>
+  </div>
+  <div class="boot-screen-text" style="position:relative;">
+    <div class="boot-scanline"></div>
+    <div class="boot-text-content">P O K E D E X</div>
+  </div>
+</div>
+
+<!-- Pokédex Shell -->
+<div class="pokedex-shell" id="pokedex">
+  <!-- Top decorative bar -->
+  <div class="pokedex-top-bar">
+    <div class="lens" role="img" aria-label="Pokédex lens"></div>
+    <div class="indicator-dots">
+      <div class="dot dot-red"></div>
+      <div class="dot dot-yellow"></div>
+      <div class="dot dot-green"></div>
+    </div>
+  </div>
+
+  <!-- Hinge line -->
+  <div class="hinge-line"></div>
+
+  <!-- Screen -->
+  <div class="screen-bezel">
+    <div class="screen">
+      <div class="screen-header">
+        <div class="progress-row">
+          <div class="progress-label">
+            <span class="pokeball-icon"></span>
+            <span>Pokédex</span>
+          </div>
+          <div class="progress-count" id="progress-count">0 / 308</div>
+        </div>
+        <div class="progress-bar-bg">
+          <div class="progress-bar-fill" id="progress-bar" style="width: 0%"></div>
+        </div>
+      </div>
+      <div class="pokemon-grid" id="pokemon-grid"></div>
+    </div>
+  </div>
+
+  <!-- Controls below screen -->
+  <div class="controls-area">
+    <div class="search-row">
+      <span class="search-icon">🔍</span>
+      <input type="text" class="search-input" id="search-input"
+             placeholder="Search Pokémon..." autocomplete="off" autocorrect="off"
+             spellcheck="false" aria-label="Search Pokémon by name">
+    </div>
+    <div class="filter-row">
+      <button class="filter-btn active" data-filter="all">All</button>
+      <button class="filter-btn" data-filter="missing">Missing</button>
+      <button class="filter-btn" data-filter="caught">Caught</button>
+    </div>
+  </div>
+</div>
+
+<!-- Bottom Sheet (Habitat Drawer) -->
+<div class="backdrop" id="backdrop"></div>
+<div class="bottom-sheet" id="bottom-sheet" role="dialog" aria-label="Pokémon habitat information">
+  <div class="sheet-handle"></div>
+  <div class="sheet-header" id="sheet-header">
+    <img class="sheet-sprite" id="sheet-sprite" src="" alt="">
+    <div>
+      <div class="sheet-pokemon-name" id="sheet-name"></div>
+      <div class="sheet-pokemon-num" id="sheet-num"></div>
+      <div class="sheet-habitat-count" id="sheet-habitat-count"></div>
+    </div>
+  </div>
+  <div class="habitat-list" id="habitat-list"></div>
+  <div class="catch-btn-row">
+    <button class="catch-btn catch" id="catch-btn"></button>
+  </div>
+</div>
+
+<!-- Habitat Lightbox -->
+<div class="lightbox" id="lightbox">
+  <div class="lightbox-content" id="lightbox-content"></div>
+</div>
+
+<script src="data.js"></script>
+<script>
+// ─── State ────────────────────────────────────────────
+const STORAGE_KEY = 'pokopia-caught';
+let caughtSet = new Set(JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'));
+let currentFilter = 'all';
+let searchQuery = '';
+let selectedPokemon = null;
+
+function saveCaught() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify([...caughtSet]));
+}
+
+function isCaught(num) {
+  return caughtSet.has(num);
+}
+
+// ─── Boot Animation ──────────────────────────────────
+function runBootAnimation() {
+  const boot = document.getElementById('boot-screen');
+  const shell = document.getElementById('pokedex');
+
+  setTimeout(() => {
+    boot.classList.add('fade-out');
+    shell.classList.add('visible');
+    setTimeout(() => boot.remove(), 500);
+  }, 2500);
+}
+
+// ─── Grid Rendering ──────────────────────────────────
+function buildGrid() {
+  const grid = document.getElementById('pokemon-grid');
+  const fragment = document.createDocumentFragment();
+
+  for (const p of POKEMON) {
+    const cell = document.createElement('div');
+    cell.className = `pokemon-cell ${isCaught(p.num) ? 'caught' : 'uncaught'}`;
+    cell.dataset.num = p.num;
+    cell.dataset.name = p.name.toLowerCase();
+
+    cell.innerHTML = `
+      <img class="sprite" src="${p.sprite}" alt="${p.name}" loading="lazy"
+           onerror="this.style.opacity='0.1'">
+      <span class="dex-num">#${p.num}</span>
+      ${isCaught(p.num) ? '<span class="check-mark">✓</span>' : ''}
+    `;
+
+    cell.addEventListener('click', () => openSheet(p));
+    fragment.appendChild(cell);
+  }
+
+  grid.innerHTML = '';
+  grid.appendChild(fragment);
+  updateProgress();
+}
+
+function updateCellState(num) {
+  const cell = document.querySelector(`.pokemon-cell[data-num="${num}"]`);
+  if (!cell) return;
+  const caught = isCaught(num);
+  cell.className = `pokemon-cell ${caught ? 'caught' : 'uncaught'}`;
+  const existing = cell.querySelector('.check-mark');
+  if (caught && !existing) {
+    const mark = document.createElement('span');
+    mark.className = 'check-mark';
+    mark.textContent = '✓';
+    cell.appendChild(mark);
+  } else if (!caught && existing) {
+    existing.remove();
+  }
+  applyFilters();
+}
+
+function updateProgress() {
+  const count = caughtSet.size;
+  const total = POKEMON.length;
+  document.getElementById('progress-count').textContent = `${count} / ${total}`;
+  document.getElementById('progress-bar').style.width = `${(count / total) * 100}%`;
+}
+
+// ─── Search & Filters ────────────────────────────────
+function applyFilters() {
+  const cells = document.querySelectorAll('.pokemon-cell');
+  cells.forEach(cell => {
+    const num = cell.dataset.num;
+    const name = cell.dataset.name;
+    const caught = isCaught(num);
+
+    let show = true;
+    if (currentFilter === 'caught' && !caught) show = false;
+    if (currentFilter === 'missing' && caught) show = false;
+    if (searchQuery && !name.includes(searchQuery)) show = false;
+
+    cell.classList.toggle('hidden', !show);
+  });
+}
+
+document.getElementById('search-input').addEventListener('input', (e) => {
+  searchQuery = e.target.value.toLowerCase().trim();
+  applyFilters();
+});
+
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentFilter = btn.dataset.filter;
+    applyFilters();
+  });
+});
+
+// ─── Bottom Sheet ────────────────────────────────────
+function openSheet(pokemon) {
+  selectedPokemon = pokemon;
+  const caught = isCaught(pokemon.num);
+
+  document.getElementById('sheet-sprite').src = pokemon.sprite;
+  document.getElementById('sheet-sprite').alt = pokemon.name;
+  document.getElementById('sheet-header').className = `sheet-header ${caught ? 'is-caught' : ''}`;
+  document.getElementById('sheet-name').textContent = pokemon.name;
+  document.getElementById('sheet-num').textContent = `#${pokemon.num}`;
+
+  const habCount = pokemon.habitats.length;
+  document.getElementById('sheet-habitat-count').textContent =
+    habCount === 0 ? 'Special encounter — no habitat needed'
+    : `Found in ${habCount} habitat${habCount > 1 ? 's' : ''}`;
+
+  // Build habitat cards
+  const list = document.getElementById('habitat-list');
+  list.innerHTML = '';
+
+  if (habCount === 0) {
+    list.innerHTML = '<p style="text-align:center;color:#888;padding:20px;font-size:14px;">This Pokémon appears through special events or encounters, not through habitats.</p>';
+  } else {
+    for (const hab of pokemon.habitats) {
+      const habitat = HABITAT_MAP[hab.habitatNum];
+      if (!habitat) continue;
+
+      const card = document.createElement('div');
+      card.className = 'habitat-card';
+      card.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openLightbox(habitat);
+      });
+
+      const rarClass = hab.rarity === 'Very Rare' ? 'veryrare'
+        : hab.rarity === 'Rare' ? 'rare'
+        : hab.rarity === 'Uncommon' ? 'uncommon' : 'common';
+
+      // Time icons
+      const timeIcons = [
+        { label: 'Morning', icon: '🌅', active: hab.times.includes('Morning') },
+        { label: 'Day', icon: '☀️', active: hab.times.includes('Day') },
+        { label: 'Evening', icon: '🌆', active: hab.times.includes('Evening') },
+        { label: 'Night', icon: '🌙', active: hab.times.includes('Night') },
+      ];
+
+      // Weather icons
+      const weatherIcons = [
+        { label: 'Sun', icon: '☀️', active: hab.weather.includes('Sun') },
+        { label: 'Cloud', icon: '☁️', active: hab.weather.includes('Cloud') },
+        { label: 'Rain', icon: '🌧️', active: hab.weather.includes('Rain') },
+      ];
+
+      card.innerHTML = `
+        <div class="habitat-card-header">
+          <img class="habitat-thumb" src="${habitat.image}" alt="${habitat.name}"
+               onerror="this.style.background='#DDD'">
+          <span class="habitat-name">${habitat.name}</span>
+          <span class="rarity-badge rarity-${rarClass}">${hab.rarity}</span>
+        </div>
+        <div class="habitat-materials">
+          ${habitat.materials.map(m => `
+            <span class="material-chip">
+              <img src="${m.image}" alt="${m.item}" onerror="this.style.display='none'">
+              <span class="material-qty">${m.quantity}x</span> ${m.item}
+            </span>
+          `).join('')}
+        </div>
+        <div class="habitat-conditions">
+          <span class="condition-group">
+            ${timeIcons.map(t => `<span class="condition-icon ${t.active ? 'condition-active' : 'condition-inactive'}" title="${t.label}">${t.icon}</span>`).join('')}
+          </span>
+          <span style="color:#CCC">|</span>
+          <span class="condition-group">
+            ${weatherIcons.map(w => `<span class="condition-icon ${w.active ? 'condition-active' : 'condition-inactive'}" title="${w.label}">${w.icon}</span>`).join('')}
+          </span>
+        </div>
+        <div class="location-tags">
+          ${hab.locations.map(l => `<span class="location-tag">${l}</span>`).join('')}
+        </div>
+      `;
+      list.appendChild(card);
+    }
+  }
+
+  // Catch button
+  const catchBtn = document.getElementById('catch-btn');
+  if (caught) {
+    catchBtn.className = 'catch-btn uncatch';
+    catchBtn.textContent = 'Mark as Uncaught';
+  } else {
+    catchBtn.className = 'catch-btn catch';
+    catchBtn.textContent = 'Mark as Caught!';
+  }
+
+  document.getElementById('backdrop').classList.add('open');
+  document.getElementById('bottom-sheet').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeSheet() {
+  document.getElementById('backdrop').classList.remove('open');
+  document.getElementById('bottom-sheet').classList.remove('open');
+  document.body.style.overflow = '';
+  selectedPokemon = null;
+}
+
+document.getElementById('backdrop').addEventListener('click', closeSheet);
+
+document.getElementById('catch-btn').addEventListener('click', () => {
+  if (!selectedPokemon) return;
+  const num = selectedPokemon.num;
+  if (isCaught(num)) {
+    caughtSet.delete(num);
+  } else {
+    caughtSet.add(num);
+  }
+  saveCaught();
+  updateCellState(num);
+  updateProgress();
+  closeSheet();
+});
+
+// ─── Habitat Lightbox ────────────────────────────────
+function openLightbox(habitat) {
+  const content = document.getElementById('lightbox-content');
+
+  // Build spawn list
+  const spawnHtml = habitat.pokemon.map(s => {
+    const caught = isCaught(s.spriteNum.padStart(3, '0'));
+    // Try to find this pokemon in our data to check caught state
+    const matchedP = POKEMON.find(p => p.name.toLowerCase() === s.name.toLowerCase());
+    const isCaughtP = matchedP ? isCaught(matchedP.num) : false;
+
+    const rarClass = s.rarity === 'Very Rare' ? 'veryrare'
+      : s.rarity === 'Rare' ? 'rare'
+      : s.rarity === 'Uncommon' ? 'uncommon' : 'common';
+
+    return `
+      <div class="lightbox-spawn-row">
+        <img class="lightbox-spawn-sprite ${isCaughtP ? '' : 'uncaught'}"
+             src="img/pokemon/${s.spriteNum}.png" alt="${s.name}"
+             onerror="this.style.opacity='0.1'">
+        <span class="lightbox-spawn-name ${isCaughtP ? '' : 'uncaught'}">${s.name}</span>
+        <span class="rarity-badge rarity-${rarClass}" style="font-size:10px">${s.rarity}</span>
+      </div>
+    `;
+  }).join('');
+
+  content.innerHTML = `
+    <div class="lightbox-header">
+      <button class="lightbox-close" onclick="closeLightbox()">✕</button>
+      <img class="lightbox-habitat-img" src="${habitat.image}" alt="${habitat.name}"
+           onerror="this.style.background='#DDD'">
+      <div class="lightbox-habitat-name">${habitat.name}</div>
+      ${habitat.description ? `<div class="lightbox-desc">${habitat.description}</div>` : ''}
+    </div>
+    <div class="lightbox-section">
+      <div class="lightbox-section-title">Materials Needed</div>
+      <div class="lightbox-materials">
+        ${habitat.materials.map(m => `
+          <div class="lightbox-material">
+            <img src="${m.image}" alt="${m.item}" onerror="this.style.display='none'">
+            <span class="lightbox-material-name">${m.item}</span>
+            <span class="lightbox-material-qty">×${m.quantity}</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+    <div class="lightbox-section" style="border-top:1px solid #D0CCC2">
+      <div class="lightbox-section-title">Pokémon in this habitat (${habitat.pokemon.length})</div>
+      <div class="lightbox-spawn-list">${spawnHtml}</div>
+    </div>
+  `;
+
+  document.getElementById('lightbox').classList.add('open');
+}
+
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('open');
+}
+
+document.getElementById('lightbox').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('lightbox')) closeLightbox();
+});
+
+// ─── Init ────────────────────────────────────────────
+buildGrid();
+runBootAnimation();
+
+// Register service worker
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js');
+}
+</script>
+</body>
+</html>
