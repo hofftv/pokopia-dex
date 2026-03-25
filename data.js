@@ -1,4 +1,4 @@
-// Pokopia Pokédex — Game Data
+// Pokopia Pokodex — Game Data
 // Auto-generated from Serebii.net on 2026-03-25
 // Do not edit manually — re-run scrape-serebii.js to update
 

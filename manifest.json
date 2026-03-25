@@ -1,6 +1,6 @@
 {
-  "name": "Pokopia Pokédex",
-  "short_name": "Pokédex",
+  "name": "Pokopia Pokodex",
+  "short_name": "Pokodex",
   "description": "Pokémon Pokopia habitat reference guide",
   "start_url": "./",
   "display": "standalone",
