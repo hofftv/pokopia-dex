@@ -331,6 +331,37 @@ body {
   box-shadow: 0 0 8px rgba(255, 51, 51, 0.4);
 }
 
+.crossfilter-row {
+  padding: 8px 0 4px;
+  display: flex;
+  justify-content: center;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #F5F0E8;
+}
+.crossfilter-banner {
+  background: #3A1800;
+  border: 1px solid #884400;
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin: 6px 6px 2px;
+  font-size: 12px;
+  color: #FFAA44;
+  text-align: center;
+}
+.item-missing-pokemon {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin-top: 2px;
+}
+.item-missing-sprite {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+}
+
 .region-row {
   margin-top: 8px;
   display: flex;
@@ -686,6 +717,109 @@ body {
 }
 .lightbox-spawn-name.uncaught { color: #AAA; }
 
+/* ─── View Toggle ─────────────────────────────────── */
+.view-toggle {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  margin-bottom: 8px;
+}
+.view-btn {
+  padding: 6px 18px;
+  border: 2px solid #660000;
+  border-radius: 14px;
+  background: #440000;
+  color: #CC8888;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: none;
+}
+.view-btn:active { transform: scale(0.95); }
+.view-btn.active {
+  background: #CC0000;
+  color: #FFF;
+  border-color: #FF3333;
+  box-shadow: 0 0 8px rgba(255, 51, 51, 0.4);
+}
+
+/* ─── Items View ──────────────────────────────────── */
+.items-container {
+  padding: 6px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+.items-container.hidden { display: none; }
+.items-list { list-style: none; }
+.item-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 8px;
+  border-bottom: 1px solid #E0DDD4;
+  cursor: pointer;
+  border-radius: 8px;
+}
+.item-row:active { background: #E8E4DA; }
+.item-row-icon {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+.item-row-name {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+}
+.item-row-count {
+  font-size: 12px;
+  color: #888;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.item-habitats {
+  display: none;
+  padding: 0 8px 8px 50px;
+}
+.item-row.expanded + .item-habitats { display: block; }
+.item-habitat-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid #EEE;
+  cursor: pointer;
+}
+.item-habitat-link:last-child { border-bottom: none; }
+.item-habitat-link:active { opacity: 0.7; }
+.item-habitat-thumb {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+  border-radius: 4px;
+  background: #F0EDE4;
+}
+.item-habitat-name {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  color: #333;
+}
+.item-habitat-qty {
+  font-size: 12px;
+  font-weight: 700;
+  color: #CC0000;
+}
+.items-empty {
+  text-align: center;
+  padding: 40px 20px;
+  color: #888;
+  font-size: 14px;
+}
+
 /* ─── Utility ──────────────────────────────────────── */
 .sr-only {
   position: absolute;
@@ -743,23 +877,28 @@ body {
         </div>
       </div>
       <div class="pokemon-grid" id="pokemon-grid"></div>
+      <div class="items-container hidden" id="items-container"></div>
     </div>
   </div>
 
   <!-- Controls below screen -->
   <div class="controls-area">
+    <div class="view-toggle">
+      <button class="view-btn active" data-view="pokemon">Pokémon</button>
+      <button class="view-btn" data-view="items">Items</button>
+    </div>
     <div class="search-row">
       <span class="search-icon">🔍</span>
       <input type="text" class="search-input" id="search-input"
              placeholder="Search Pokémon..." autocomplete="off" autocorrect="off"
              spellcheck="false" aria-label="Search Pokémon by name">
     </div>
-    <div class="filter-row">
+    <div class="filter-row" id="filter-row">
       <button class="filter-btn active" data-filter="all">All</button>
       <button class="filter-btn" data-filter="missing">Missing</button>
       <button class="filter-btn" data-filter="caught">Caught</button>
     </div>
-    <div class="region-row">
+    <div class="region-row" id="region-row">
       <select class="region-select" id="region-select" aria-label="Filter by region">
         <option value="">All Regions</option>
         <option value="Bleak Beach">Bleak Beach</option>
@@ -936,11 +1075,6 @@ function applyFilters() {
   });
 }
 
-document.getElementById('search-input').addEventListener('input', (e) => {
-  searchQuery = e.target.value.toLowerCase().trim();
-  applyFilters();
-});
-
 document.querySelectorAll('.filter-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
@@ -1076,6 +1210,7 @@ document.getElementById('catch-btn').addEventListener('click', () => {
   saveCaught();
   updateCellState(uid);
   updateProgress();
+  if (currentView === 'items' && crossFilterActive) renderItems();
   closeSheet();
 });
 
@@ -1139,6 +1274,203 @@ function closeLightbox() {
 
 document.getElementById('lightbox').addEventListener('click', (e) => {
   if (e.target === document.getElementById('lightbox')) closeLightbox();
+});
+
+// ─── Item Index ─────────────────────────────────────
+// Build reverse lookup: item name → [{habitat, quantity, image}]
+const ITEM_INDEX = {};
+for (const h of HABITATS) {
+  for (const m of h.materials) {
+    const key = m.item.toLowerCase();
+    if (!ITEM_INDEX[key]) {
+      ITEM_INDEX[key] = { name: m.item, image: m.image, habitats: [] };
+    }
+    ITEM_INDEX[key].habitats.push({ habitat: h, quantity: m.quantity });
+  }
+}
+// Sort items alphabetically
+const ITEM_LIST = Object.values(ITEM_INDEX).sort((a, b) => a.name.localeCompare(b.name));
+
+let currentView = 'pokemon';
+let itemSearchQuery = '';
+let crossFilterActive = false;
+
+function computeNeededItems() {
+  const needed = new Map();
+  for (const p of POKEMON) {
+    if (caughtSet.has(p.uid)) continue;
+    for (const hab of p.habitats) {
+      const habitat = HABITAT_MAP[hab.habitatNum];
+      if (!habitat) continue;
+      for (const mat of habitat.materials) {
+        const key = mat.item.toLowerCase();
+        if (!needed.has(key)) {
+          needed.set(key, { name: mat.item, image: mat.image, habitats: new Map() });
+        }
+        const entry = needed.get(key);
+        if (!entry.habitats.has(hab.habitatNum)) {
+          entry.habitats.set(hab.habitatNum, { habitat: habitat, quantity: mat.quantity, missingPokemon: [] });
+        }
+        const habEntry = entry.habitats.get(hab.habitatNum);
+        if (!habEntry.missingPokemon.some(mp => mp.uid === p.uid)) {
+          habEntry.missingPokemon.push({ name: p.name, sprite: p.sprite, uid: p.uid });
+        }
+      }
+    }
+  }
+  return needed;
+}
+
+function renderItems() {
+  const container = document.getElementById('items-container');
+  const query = itemSearchQuery;
+
+  let neededMap = null;
+  let missingCount = 0;
+  if (crossFilterActive) {
+    neededMap = computeNeededItems();
+    const missingUids = new Set();
+    for (const [, entry] of neededMap) {
+      for (const [, habEntry] of entry.habitats) {
+        habEntry.missingPokemon.forEach(mp => missingUids.add(mp.uid));
+      }
+    }
+    missingCount = missingUids.size;
+  }
+
+  let filtered = ITEM_LIST;
+  if (crossFilterActive && neededMap) {
+    filtered = filtered.filter(item => neededMap.has(item.name.toLowerCase()));
+  }
+  if (query) {
+    filtered = filtered.filter(item => item.name.toLowerCase().includes(query));
+  }
+
+  const btnClass = crossFilterActive ? 'filter-btn active' : 'filter-btn';
+  let html = `<div class="crossfilter-row"><button class="${btnClass}" onclick="toggleCrossFilter()">Needed for Missing</button></div>`;
+
+  if (filtered.length === 0) {
+    const msg = crossFilterActive
+      ? 'All caught! No items needed for missing Pok\u00e9mon. \ud83c\udf89'
+      : (query ? 'No items match "' + query.replace(/</g, '&lt;') + '"' : 'No items found');
+    container.innerHTML = html + `<div class="items-empty">${msg}</div>`;
+    return;
+  }
+
+  if (crossFilterActive) {
+    html += `<div class="crossfilter-banner">Showing <strong>${filtered.length}</strong> item${filtered.length !== 1 ? 's' : ''} needed for <strong>${missingCount}</strong> missing Pok\u00e9mon</div>`;
+  }
+
+  html += '<ul class="items-list">';
+  for (const item of filtered) {
+    const id = 'item-' + item.name.replace(/[^a-zA-Z0-9]/g, '_');
+    const neededEntry = (crossFilterActive && neededMap) ? neededMap.get(item.name.toLowerCase()) : null;
+    const habitatsToShow = neededEntry
+      ? item.habitats.filter(h => neededEntry.habitats.has(h.habitat.num))
+      : item.habitats;
+    const countLabel = neededEntry
+      ? `${habitatsToShow.length} needed`
+      : `${item.habitats.length} habitat${item.habitats.length > 1 ? 's' : ''}`;
+
+    html += `
+      <li>
+        <div class="item-row" data-item-id="${id}" onclick="toggleItemExpand(this)">
+          <img class="item-row-icon" src="${item.image}" alt="${item.name}" onerror="this.style.opacity='0.2'">
+          <span class="item-row-name">${item.name}</span>
+          <span class="item-row-count">${countLabel}</span>
+        </div>
+        <div class="item-habitats" id="${id}">
+          ${habitatsToShow.map(h => {
+            const missingSprites = neededEntry
+              ? (neededEntry.habitats.get(h.habitat.num)?.missingPokemon || [])
+              : [];
+            return `
+            <div class="item-habitat-link" onclick="openLightbox(HABITAT_MAP[${h.habitat.num}])">
+              <img class="item-habitat-thumb" src="${h.habitat.image}" alt="${h.habitat.name}" onerror="this.style.background='#DDD'">
+              <div style="flex:1">
+                <span class="item-habitat-name">${h.habitat.name}</span>
+                ${missingSprites.length > 0 ? `
+                <div class="item-missing-pokemon">
+                  ${missingSprites.map(mp => `<img class="item-missing-sprite" src="${mp.sprite}" title="${mp.name}" onerror="this.style.opacity='0.1'">`).join('')}
+                </div>` : ''}
+              </div>
+              <span class="item-habitat-qty">${h.quantity}x needed</span>
+            </div>`;
+          }).join('')}
+        </div>
+      </li>
+    `;
+  }
+  html += '</ul>';
+  container.innerHTML = html;
+}
+
+function toggleItemExpand(rowEl) {
+  const wasExpanded = rowEl.classList.contains('expanded');
+  // Collapse all first
+  document.querySelectorAll('.item-row.expanded').forEach(r => r.classList.remove('expanded'));
+  if (!wasExpanded) {
+    rowEl.classList.add('expanded');
+    // Scroll it into view
+    setTimeout(() => rowEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 50);
+  }
+}
+
+function switchView(view) {
+  currentView = view;
+  const searchInput = document.getElementById('search-input');
+  const grid = document.getElementById('pokemon-grid');
+  const itemsContainer = document.getElementById('items-container');
+  const filterRow = document.getElementById('filter-row');
+  const regionRow = document.getElementById('region-row');
+  const screenHeader = document.querySelector('.screen-header');
+
+  document.querySelectorAll('.view-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.view === view);
+  });
+
+  if (view === 'pokemon') {
+    grid.style.display = '';
+    itemsContainer.classList.add('hidden');
+    filterRow.style.display = '';
+    regionRow.style.display = '';
+    screenHeader.style.display = '';
+    searchInput.placeholder = 'Search Pokémon...';
+    searchInput.value = searchQuery;
+  } else {
+    grid.style.display = 'none';
+    itemsContainer.classList.remove('hidden');
+    filterRow.style.display = 'none';
+    regionRow.style.display = 'none';
+    screenHeader.style.display = 'none';
+    searchInput.placeholder = 'Search items...';
+    searchInput.value = '';
+    itemSearchQuery = '';
+    renderItems();
+  }
+}
+
+// Hook up view toggle buttons
+document.querySelectorAll('.view-btn').forEach(btn => {
+  btn.addEventListener('click', () => switchView(btn.dataset.view));
+});
+
+// Cross-filter toggle (button rendered inside items container)
+function toggleCrossFilter() {
+  crossFilterActive = !crossFilterActive;
+  renderItems();
+}
+
+// Search input handles both views
+document.getElementById('search-input').addEventListener('input', (e) => {
+  const val = e.target.value.toLowerCase().trim();
+  if (currentView === 'pokemon') {
+    searchQuery = val;
+    applyFilters();
+  } else {
+    itemSearchQuery = val;
+    renderItems();
+  }
 });
 
 // ─── Init ────────────────────────────────────────────
